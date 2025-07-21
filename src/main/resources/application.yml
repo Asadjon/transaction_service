@@ -1,0 +1,39 @@
+server:
+  port: 8083
+
+spring:
+
+  application:
+    name: transaction_service
+
+  config:
+    import: optional:file:.env[.properties]
+
+  datasource:
+    url: jdbc:postgresql://${PGHOST}:${PGPORT}/${PGDATABASE}
+    username: ${PGUSER}
+    password: ${PGPASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  sql:
+    init:
+      mode: always
+
+  jpa:
+    generate-ddl: true
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        show_sql: false
+        format_sql: true
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+service:
+
+  auth:
+    url: ${AUTH_URL}
+
+  balance:
+    url: ${BALANCE_URL}
