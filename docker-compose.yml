@@ -1,0 +1,36 @@
+version: "3.9"
+
+services:
+
+  transaction_db:
+    image: postgres:15
+    restart: always
+    container_name: transaction-postgres
+    environment:
+      POSTGRES_DB: transaction_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 4929
+    ports:
+      - "5435:5432"
+    networks:
+      - network_mode
+
+  transaction_service:
+    image: transaction-service
+    container_name: transaction-service
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - transaction_db
+    expose:
+      - "8083"
+    networks:
+      - network_mode
+    env_file:
+      - ./.env
+
+networks:
+  network_mode:
+    name: app-network
+    external: true

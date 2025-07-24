@@ -14,6 +14,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 @RequiredArgsConstructor
@@ -23,30 +24,29 @@ public class TransactionService {
     private final BalanceService balanceService;
     private final UserService userService;
 
-    public List<TransactionResponse> getAll() {
-        return transactionRepository.findAll().stream()
-                .map(this::mapToResponse).toList();
+    public CompletableFuture<List<TransactionResponse>> getAll() {
+        return CompletableFuture.supplyAsync(() ->
+                transactionRepository.findAll().stream()
+                        .map(this::mapToResponse).toList());
     }
 
-    public List<TransactionResponse> getByUser(long userId) {
-        var transactions = transactionRepository.findAllByFromUserId(userId).stream()
-                .map(this::mapToResponse).toList();
-
-        if (transactions.isEmpty())
-            throw new TransactionException("User transactions not found");
-
-        return transactions;
+    public CompletableFuture<List<TransactionResponse>> getByUser(long userId) {
+        return CompletableFuture.supplyAsync(() ->
+                transactionRepository.findAllByFromUserId(userId).stream()
+                        .map(this::mapToResponse).toList());
     }
 
-    public List<TransactionResponse> getTransactionsBetween(LocalDate from, LocalDate to) {
+    public CompletableFuture<List<TransactionResponse>> getTransactionsBetween(LocalDate from, LocalDate to) {
         if (from.isBefore(to))
             throw new IllegalArgumentException("from must be before to");
 
         if (from.isEqual(to))
             to = to.plusDays(1);
 
-        return transactionRepository.findByCreatedAtBetween(from.atStartOfDay(), to.atStartOfDay()).stream()
-                .map(this::mapToResponse).toList();
+        var finalTo = to;
+        return CompletableFuture.supplyAsync(()->
+                transactionRepository.findByCreatedAtBetween(from.atStartOfDay(), finalTo.atStartOfDay()).stream()
+                        .map(this::mapToResponse).toList());
     }
 
     private TransactionResponse mapToResponse(Transaction transaction) {
@@ -61,64 +61,79 @@ public class TransactionService {
         );
     }
 
-    public String transfer(TransferRequest request) {
-        var fromUser = userService.validateUser(request.getFromUserId());
-        var toUser = userService.validateUser(request.getToUserId());
+    public CompletableFuture<String> transfer(TransferRequest request) {
+        var fromUserFuture = userService.validateUser(request.getFromUserId());
+        var toUserFuture = userService.validateUser(request.getToUserId());
+        var fromUser = new AtomicReference<UserResponse>();
+        var toUser = new AtomicReference<UserResponse>();
 
-        if (fromUser.getId() == toUser.getId()) {
+        return CompletableFuture.allOf(fromUserFuture, toUserFuture)
 
-            saveTransaction(fromUser.getId(), toUser.getId(), request.getAmount(),
-                    TransactionType.TRANSFER, Status.FAILED, "From user id must be different to user id");
+                .thenAccept(unused -> {
+                    fromUser.set(fromUserFuture.join());
+                    toUser.set(toUserFuture.join());
+                })
 
-            throw new TransactionException("From user id must be different to user id");
-        }
+                .thenCompose(unused -> {
+                    if (fromUser.get().getId() == toUser.get().getId())
+                        return saveTransaction(fromUser.get().getId(), toUser.get().getId(), request.getAmount(),
+                                TransactionType.TRANSFER, Status.FAILED, "From user id must be different to user id")
+                                .thenApply(unused1 -> {
+                                    throw new TransactionException("From user id must be different to user id");
+                                });
 
-        var balance = balanceService.getUserBalance(fromUser.getId());
+                    return balanceService.getUserBalance(fromUser.get().getId());
+                })
 
-        if (balance.getCurrent_balance().compareTo(request.getAmount()) < 0) {
+                .thenCompose(balance -> {
+                    if (balance.getCurrent_balance().compareTo(request.getAmount()) < 0)
+                        return saveTransaction(fromUser.get().getId(), toUser.get().getId(), request.getAmount(),
+                                TransactionType.TRANSFER, Status.FAILED, "Amount must be greater than current balance")
+                                .thenApply(unused -> {
+                                    throw new TransactionException("Amount must be greater than current balance");
+                                });
 
-            saveTransaction(fromUser.getId(), toUser.getId(), request.getAmount(),
-                    TransactionType.TRANSFER, Status.FAILED, "Amount must be greater than current balance");
+                   return CompletableFuture.allOf(balanceService.decrease(request.getFromUserId(), request.getAmount()),
+                           balanceService.increase(request.getToUserId(), request.getAmount()));
+                })
 
-            throw new TransactionException("Amount must be greater than current balance");
-        }
-
-        balanceService.decrease(request.getFromUserId(), request.getAmount());
-        balanceService.increase(request.getToUserId(), request.getAmount());
-
-        saveTransaction(fromUser.getId(), toUser.getId(), request.getAmount(),
-                TransactionType.TRANSFER, Status.SUCCESS, "Transfer successful");
-
-        return "Transfer successful";
+                .thenCompose(unused ->
+                        saveTransaction(fromUser.get().getId(), toUser.get().getId(), request.getAmount(),
+                                TransactionType.TRANSFER, Status.SUCCESS, "Transfer successful")
+                                .thenApply(unused1 -> "Transfer successful"));
     }
 
-    public String withdraw(WithdrawRequest request) {
-        userService.validateUser(request.getUserId());
+    public CompletableFuture<String> withdraw(WithdrawRequest request) {
+        return userService.validateUser(request.getUserId())
 
-        var userBalance = balanceService.getUserBalance(request.getUserId());
-        if (userBalance.getCurrent_balance().compareTo(request.getAmount()) < 0) {
+                .thenCompose(user -> balanceService.getUserBalance(user.getId()))
 
-            saveTransaction(request.getUserId(), -1, request.getAmount(), TransactionType.WITHDRAW, Status.FAILED, "Amount must be greater than current balance");
+                .thenCompose(balance -> {
+                    if (balance.getCurrent_balance().compareTo(request.getAmount()) < 0)
+                        return saveTransaction(request.getUserId(), -1, request.getAmount(),
+                                TransactionType.WITHDRAW, Status.FAILED, "Amount must be greater than current balance")
+                                .thenApply(unused -> {
+                                    throw new TransactionException("Amount must be greater than current balance");
+                                });
+                    return balanceService.decrease(request.getUserId(), request.getAmount());
+                })
 
-            throw new TransactionException("Amount must be greater than current balance");
-        }
-
-        balanceService.decrease(request.getUserId(), request.getAmount());
-        saveTransaction(request.getUserId(), -1, request.getAmount(), TransactionType.WITHDRAW, Status.SUCCESS, "Withdrawal successful");
-
-        return "Withdrawal successful";
+                .thenCompose(unused -> saveTransaction(request.getUserId(), -1, request.getAmount(),
+                        TransactionType.WITHDRAW, Status.SUCCESS, "Withdrawal successful")
+                        .thenApply(unused1 -> "Withdrawal successful"));
     }
 
-    public String deposit(DepositRequest request) {
-        userService.validateUser(request.getUserId());
+    public CompletableFuture<String> deposit(DepositRequest request) {
+        return userService.validateUser(request.getUserId())
 
-        balanceService.increase(request.getUserId(), request.getAmount());
-        saveTransaction(-1, request.getUserId(), request.getAmount(), TransactionType.DEPOSIT, Status.SUCCESS, "Deposit successful");
+                .thenCompose(user -> balanceService.increase(request.getUserId(), request.getAmount()))
 
-        return "Deposit successful";
+                .thenCompose(unused -> saveTransaction(-1, request.getUserId(), request.getAmount(),
+                        TransactionType.DEPOSIT, Status.SUCCESS, "Deposit successful")
+                        .thenApply(unused1 -> "Deposit successful"));
     }
 
-    private void saveTransaction(long fromUserId, long toUserId, BigDecimal amount, TransactionType type, Status status, String description) {
+    private CompletableFuture<Void> saveTransaction(long fromUserId, long toUserId, BigDecimal amount, TransactionType type, Status status, String description) {
         var transaction = Transaction.builder()
                 .fromUserId(fromUserId)
                 .toUserId(toUserId)
@@ -129,6 +144,6 @@ public class TransactionService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        transactionRepository.save(transaction);
+        return CompletableFuture.runAsync(() -> transactionRepository.save(transaction));
     }
 }

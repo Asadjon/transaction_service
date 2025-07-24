@@ -9,6 +9,8 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.util.concurrent.CompletableFuture;
+
 @Service
 @RequiredArgsConstructor
 public class UserService {
@@ -18,7 +20,7 @@ public class UserService {
 
     private final WebClient.Builder webClientBuilder;
 
-    public UserResponse validateUser(long userId) {
+    public CompletableFuture<UserResponse> validateUser(long userId) {
         return webClientBuilder.build()
                 .get().uri(authServiceUrl + "/validate/{userId}", userId)
                 .accept(MediaType.APPLICATION_JSON)
@@ -26,6 +28,6 @@ public class UserService {
                 .onStatus(HttpStatusCode::is4xxClientError,
                         response -> response.bodyToMono(String.class).map(UserException::new))
                 .bodyToMono(UserResponse.class)
-                .block();
+                .toFuture();
     }
 }

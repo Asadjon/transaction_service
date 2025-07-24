@@ -13,6 +13,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 @RequiredArgsConstructor
@@ -23,7 +24,7 @@ public class BalanceService {
 
     private final WebClient.Builder webClientBuilder;
 
-    public BalanceResponse getUserBalance(long userId) {
+    public CompletableFuture<BalanceResponse> getUserBalance(long userId) {
         return webClientBuilder.build()
                 .get().uri(balanceServiceUrl + "/{userId}", userId)
                 .accept(MediaType.APPLICATION_JSON)
@@ -31,35 +32,35 @@ public class BalanceService {
                 .onStatus(HttpStatusCode::is4xxClientError,
                         response -> response.bodyToMono(String.class).map(BalanceException::new))
                 .bodyToMono(BalanceResponse.class)
-                .block();
+                .toFuture();
     }
 
-    public void changeBalance(BalanceChangeRequest request) {
-        webClientBuilder.build()
+    public CompletableFuture<Void> changeBalance(BalanceChangeRequest request) {
+        return webClientBuilder.build()
                 .post().uri(balanceServiceUrl + "/change")
                 .body(Mono.just(request), BalanceChangeRequest.class)
                 .retrieve()
                 .onStatus(HttpStatusCode::is4xxClientError,
                         response -> response.bodyToMono(String.class).map(BalanceException::new))
                 .bodyToMono(Void.class)
-                .subscribe();
+                .toFuture();
     }
 
-    public void increase(long userId, BigDecimal amount) {
+    public CompletableFuture<Void> increase(long userId, BigDecimal amount) {
         var request = BalanceChangeRequest.builder()
                 .userId(userId)
                 .amount(amount)
                 .type(ChangeType.INCREASE)
                 .build();
-        changeBalance(request);
+        return changeBalance(request);
     }
 
-    public void decrease(long userId, BigDecimal amount) {
+    public CompletableFuture<Void> decrease(long userId, BigDecimal amount) {
         var request = BalanceChangeRequest.builder()
                 .userId(userId)
                 .amount(amount)
                 .type(ChangeType.DECREASE)
                 .build();
-        changeBalance(request);
+        return changeBalance(request);
     }
 }

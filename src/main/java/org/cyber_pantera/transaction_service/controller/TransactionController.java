@@ -11,8 +11,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/api/v1/transaction")
@@ -22,34 +22,40 @@ public class TransactionController {
     private final TransactionService transactionService;
 
     @GetMapping("/all")
-    public ResponseEntity<List<TransactionResponse>> getAllTransactions() {
-        return ResponseEntity.ok(transactionService.getAll());
+    public CompletableFuture<ResponseEntity<List<TransactionResponse>>> getAllTransactions() {
+        return transactionService.getAll()
+                .thenApply(ResponseEntity::ok);
     }
 
     @GetMapping("/user/{userId}")
-    public ResponseEntity<List<TransactionResponse>> getTransactionsByUserId(@PathVariable long userId) {
-        return ResponseEntity.ok(transactionService.getByUser(userId));
+    public CompletableFuture<ResponseEntity<List<TransactionResponse>>> getTransactionsByUserId(@PathVariable long userId) {
+        return transactionService.getByUser(userId)
+                .thenApply(ResponseEntity::ok);
     }
 
     @GetMapping("/range")
-    public ResponseEntity<List<TransactionResponse>> getTransactionsInRange(
+    public CompletableFuture<ResponseEntity<List<TransactionResponse>>> getTransactionsInRange(
             @RequestParam("from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam("to") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return ResponseEntity.ok(transactionService.getTransactionsBetween(from, to));
+        return transactionService.getTransactionsBetween(from, to)
+                .thenApply(ResponseEntity::ok);
     }
 
     @PostMapping("/transfer")
-    public ResponseEntity<String> transferTransactions(@RequestBody TransferRequest request) {
-        return ResponseEntity.ok(transactionService.transfer(request));
+    public CompletableFuture<ResponseEntity<String>> transferTransactions(@RequestBody TransferRequest request) {
+        return transactionService.transfer(request)
+                .thenApply(ResponseEntity::ok);
     }
 
     @PostMapping("/withdraw")
-    public ResponseEntity<String> withdrawTransactions(@RequestBody WithdrawRequest request) {
-        return ResponseEntity.ok(transactionService.withdraw(request));
+    public CompletableFuture<ResponseEntity<String>> withdrawTransactions(@RequestBody WithdrawRequest request) {
+        return transactionService.withdraw(request)
+                .thenApply(ResponseEntity::ok);
     }
 
     @PostMapping("/deposit")
-    public ResponseEntity<String> depositTransactions(@RequestBody DepositRequest request) {
-        return ResponseEntity.ok(transactionService.deposit(request));
+    public CompletableFuture<ResponseEntity<String>> depositTransactions(@RequestBody DepositRequest request) {
+        return transactionService.deposit(request)
+                .thenApply(ResponseEntity::ok);
     }
 }
