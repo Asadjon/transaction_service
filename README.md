@@ -26,45 +26,8 @@ All endpoints are protected using JWT and accessed through the API Gateway.
 
 ---
 
-## 📦 Clone All Required Repositories
-To run the full Transaction Management System, you'll need to clone each microservice repository into a common workspace folder. You can do it manually or with the following commands:
-
-### 1. Create a project directory
-   ```
-   mkdir transaction-system && cd transaction-system
-   ```
-
-### > 2. Clone all required services
-> * [auth_service](https://github.com/Asadjon/balance_service.git) 
-> * [balance_service](https://github.com/Asadjon/balance_service.git)
-> * [transaction_service](https://github.com/Asadjon/transaction_service.git) ← this repository
-> * [api_gateway](https://github.com/Asadjon/api_gateway.git)
-
----
-
-## 🚀 Running with Docker
-### 1. Create app-network (only once)
-If you haven't created the custom network yet, run:
-```
-docker network create app-network
-```
-
-### 2. Build and start the container
-Inside the directory where your Dockerfile and docker-compose.yml are located, run:
-```
-docker-compose up --build
-```
-
-### 3. Useful Docker commands
-Inspect all containers connected to app-network:
-```docker
-docker network inspect app-network
-```
-
-Stop and remove the container(s):
-```
-docker-compose down
-```
+## ⚙️ Setup Instruction
+> You can view the installation manual in the [transaction-management-system](https://github.com/Asadjon/transaction-management-system/blob/master/README.md) repository.
 
 ---
 
@@ -93,7 +56,8 @@ Authorization: Bearer <access_token>
 
 ## 📦 Request & Response Body Structures
 
-### 🔍 Get Transactions by Date Range `GET /api/v1/transaction/range?from=2025-07-01&to=2025-07-21`
+**🔍 Get Transactions by Date Range** `GET /api/v1/transaction/range?from=2025-07-01&to=2025-07-21`
+
 **Response:**
 ```json
 [
@@ -118,7 +82,8 @@ Authorization: Bearer <access_token>
 ]
 ```
 
-### 🔁 Transfer `POST /api/v1/transaction/transfer`
+**🔁 Transfer** `POST /api/v1/transaction/transfer`
+
 **Request Body:**
 ```json
 {
@@ -129,7 +94,8 @@ Authorization: Bearer <access_token>
 ```
 **Response:** `Transfer successful`
 
-### 💸 Withdraw `POST /api/v1/transaction/withdraw`
+**💸 Withdraw** `POST /api/v1/transaction/withdraw`
+
 **Request Body:**
 ```json
 {
@@ -139,7 +105,8 @@ Authorization: Bearer <access_token>
 ```
 **Response:** `Withdrawal successful`
 
-### 💰 Deposit `POST /api/v1/transaction/deposit`
+**💰 Deposit** `POST /api/v1/transaction/deposit`
+
 **Request Body:**
 ```json
 {
