@@ -1,5 +1,10 @@
+FROM gradle:8.14.3-jdk21 AS build
+WORKDIR /home/app
+COPY --chown=gradle:gradle . .
+RUN gradle clean build -x test
+
 FROM openjdk:21-jdk-slim
 WORKDIR /app
-COPY build/libs/transaction_service-1.0-SNAPSHOT.jar app.jar
+COPY --from=build /home/app/build/libs/*.jar app.jar
 ENTRYPOINT ["java", "-jar", "app.jar"]
 EXPOSE 8083
